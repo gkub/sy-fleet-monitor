@@ -64,10 +64,10 @@ Each package has its own README covering its types, methods, and design decision
 
 | Package | Description | README |
 |---------|-------------|--------|
-| `cmd/fleetstats` | Entry point — startup, flags, routing | [cmd/fleetstats/README.md](cmd/fleetstats/README.md) |
-| `internal/device` | Data model — Device struct, in-memory Registry, all locking | [internal/device/README.md](internal/device/README.md) |
-| `internal/metrics` | Pure math — uptime and avg upload time calculations | [internal/metrics/README.md](internal/metrics/README.md) |
-| `internal/handler` | HTTP layer — request handling, JSON, error responses | [internal/handler/README.md](internal/handler/README.md) |
+| `cmd/fleetstats` | Entry point: startup, flags, routing | [cmd/fleetstats/README.md](cmd/fleetstats/README.md) |
+| `internal/device` | Data model: Device struct, in-memory Registry, all locking | [internal/device/README.md](internal/device/README.md) |
+| `internal/metrics` | Pure math: uptime and avg upload time calculations | [internal/metrics/README.md](internal/metrics/README.md) |
+| `internal/handler` | HTTP layer: request handling, JSON, error responses | [internal/handler/README.md](internal/handler/README.md) |
 
 ---
 
@@ -90,8 +90,6 @@ graph TD
     B -->|"calls FindByID,\nRecordHeartbeat,\nRecordUploadStat,\nSnapshot"| C
     B -->|"calls CalculateUptime,\nCalculateAverageUploadDuration"| D
 ```
-
-**Key design principle:** each package has one job. `metrics` knows nothing about HTTP. `device` knows nothing about calculations. `handler` knows nothing about locking. If you change how uptime is calculated, you only touch `metrics`. If you add a new endpoint, you only touch `handler` and `main.go`.
 
 ---
 
@@ -237,7 +235,7 @@ PostgreSQL would be my first choice - partly because it handles time-series data
 | `POST /stats` | O(1) amortized | Same |
 | `GET /stats` | O(H + U) | H = heartbeat count, U = upload count - one linear pass each |
 
-The real complexity concern is **memory, not time**. Storing every raw heartbeat forever means memory per device grows without bound: 1 heartbeat/min × 1 year × 24 bytes = ~12 MB per device. Across 30,000 devices that's ~360 GB. The production fix is to store running aggregates instead of raw slices:
+The real complexity concern is **memory, not time**. Storing every raw heartbeat forever means memory per device grows without bound: 1 heartbeat/min × 1 year × 24 bytes = ~12 MB per device. Across 30,000 devices that's more than 350 GB in one year. The production fix is to store running aggregates instead of raw slices:
 
 ```go
 // O(1) memory per device regardless of how long it has been running
