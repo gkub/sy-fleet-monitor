@@ -198,7 +198,7 @@ I ultimately used a considerable amount of AI tooling to complete the project in
 
 I'll be honest - using AI this heavily on a take-home is not how I'd normally like to approach this kind of assessment. But (aforementioned time constraints aside) given the current landscape of software development, I do think this is probably more authentic to the reality of software development work in 2026 for anyone wishing to remain competitive in the job market (rather than pretending otherwise). The top-of-the-line AI agents today meaningfully change what a software engineer can produce in a given window of time, and I'd rather demonstrate that I can work effectively with these tools than provide a half-baked manual solution.
 
-For the sake of integrity, here are some screenshots of the Go-related resources I read through as I worked through and audited the project (specific links can be provided if anyone is interested):
+For the sake of integrity, here are some screenshots of the Go-related resources I referenced/learned from while I worked through and audited the project (specific links can be provided if anyone is interested):
 
 ![history1](./assets/images/history1.png)
 ![history2](./assets/images/history2.png)
