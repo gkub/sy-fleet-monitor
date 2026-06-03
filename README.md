@@ -223,7 +223,9 @@ type Device struct {
 
 Paired with a registered calculator map, adding a new metric becomes: write one calculation function, add one route. The `Device` struct never changes.
 
-**The bigger long-term change would be to move to a database.** In-memory storage works fine for a small fleet over a short window (or perhaps on a supercomputer for a small specialized fleet), but it doesn't scale - at one heartbeat per minute per device, 30,000 devices running for a year would need hundreds of gigabytes of RAM just for heartbeat data alone.
+**The bigger long-term change would be to move to a database.** In-memory storage works fine for a small fleet over a short window (or perhaps on a supercomputer for a small specialized fleet), but it doesn't scale - at one heartbeat per minute per device, 30,000+ devices running for a year would need hundreds of gigabytes of RAM just for heartbeat data alone.
+
+*(As a side note - the "30,000" number I'm referencing herein is just based on the number we discussed in our initial interview).*
 
 PostgreSQL would be my first choice - partly because it handles time-series data well and scales comfortably to millions of rows with proper indexing, but honestly also because it's what I know best. I've built a multi-tenant Postgres database for fleet edge-AI devices in my current role, so this domain feels familiar. I'd be open to a better fit if one exists for the specific requirements, but Postgres is where I'd start. The result is the same query capability with a fraction of the memory footprint, and adding a new metric type becomes as simple as a new table and a new route - existing code is untouched.
 
