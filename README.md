@@ -139,10 +139,13 @@ sequenceDiagram
 sequenceDiagram
     participant Simulator as Device Simulator
     participant Handler as handler.GetDeviceStats
+    participant Registry as device.Registry
     participant Device as device.Device
     participant Metrics as metrics package
 
     Simulator->>Handler: GET /api/v1/devices/{id}/stats
+    Handler->>Registry: FindByID(id)
+    Registry-->>Handler: *Device (found)
     Handler->>Device: Snapshot()
     Device->>Device: Lock, copy slices, unlock
     Device-->>Handler: []time.Time heartbeats, []int64 uploadTimes
