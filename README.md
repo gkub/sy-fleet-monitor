@@ -25,7 +25,7 @@ go run ./cmd/fleetstats -devices devices.csv
 ./device-simulator-linux-amd64 --port 6733
 ```
 
-The server listens on port **6733** (required by the OpenAPI contract). Results are written to `results.txt`.
+The server listens on port **6733** by default (as required by the OpenAPI contract). Results are written to `results.txt`.
 
 ## API Endpoints
 
@@ -194,7 +194,7 @@ As discussed in my first interview, I have never worked with (nor even seen a li
 
 I ultimately used a considerable amount of AI tooling to complete the project, which I want to be fully transparent about. I initially began by working through some of the Go starter tutorials, and then started writing a manual solution using ChatGPT to source relevant Go documentation and other reasonable online resources as needed. However, after being asked to work over the weekend, I eventually started using Claude Code to produce a higher-quality working solution more quickly, and pivoted to treating the resultant project as a focused Go learning resource. I (manually) audited the codebase several times over, cross-referencing all unfamiliar syntax, idioms, and otherwise uncertain Go concepts with the official Go documentation (as well as various other online resources).
 
-Using AI this heavily on a take-home is not how I'd normally prefer to approach this kind of assessment, especially after over a decade of manual programming and going through numerous pre-(useful)-AI coding assessments. But (aforementioned time constraints aside) given the current landscape of software development, I do think this approach is more authentic to the reality of software development in 2026 for anyone wishing to remain competitive in the job market, and going against the grain in this respect feels increasingly absurd/non-competitive. The top-of-the-line AI agents today have meaningfully changed what a software engineer can produce in a given window of time, and I'd rather demonstrate that I can work effectively/create robust software quickly with these tools than provide a rushed or incomplete solution.
+Using AI this heavily on a take-home is not how I'd normally prefer to approach this kind of assessment. But (aforementioned time constraints aside) given the current landscape of software development, I do think this approach is more authentic to the reality of software development in 2026 for anyone wishing to remain competitive in the market, and going against the grain in this respect feels increasingly non-competitive. Either way, I'd rather demonstrate that I can work effectively/create robust software quickly with these tools than provide a rushed incomplete manual solution.
 
 For the sake of integrity, here are some screenshots of the Go-related resources I referenced/learned from while I worked through and audited the project (specific links can be provided if anyone is interested):
 
