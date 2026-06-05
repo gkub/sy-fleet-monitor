@@ -188,23 +188,24 @@ DeviceID: 26-9a-66-01-33-83
 
 ### How long did you spend working on the problem? What was the most difficult part?
 
-I spent roughly 15 hours on this project. I would have liked to have spent more time refining, but I was under tight time constraints due to work obligations over the weekend.
+I have, thus far, spent roughly 20 hours on this project. There are lots of small features and optimizations that would be nice to add, but this is at least a complete working solution.
 
-As discussed in my first interview, I have never worked with (nor even seen a line of) Go before this assignment. Followingly, the most difficult part for me was learning enough Go to know how to begin, granted a narrow window of time to complete the assignment. The core engineering concepts in the project are all comfortably familiar to me - REST APIs and request/response handling, pointers/in-memory storage, and synchronization primitives - but figuring out how to implement these concepts in a new language, under a tight time crunch, was challenging. 
+As discussed in my first interview, I have never worked with (nor seen a line of) Go prior to this assignment. Followingly, the most difficult part for me was learning enough Go to know how to begin, granted a busy work schedule (and thus a narrow window of time to complete the assignment within). The core engineering concepts in the project are all comfortably familiar to me from work, university, and personal projects, with REST APIs + request/response handling, pointers/in-memory storage, and synchronization primitives all being concepts I've worked with fairly extensively on multiple projects. Figuring out how to implement these concepts in a new language was the challenging part.
 
-I ultimately used a considerable amount of AI tooling to complete the project, which I want to be fully transparent about. I initially began by working through some of the Go starter tutorials, and then started writing a manual solution using ChatGPT to source relevant Go documentation and other reasonable online resources as needed. However, after being asked to work over the weekend, I eventually started using Claude Code to produce a higher-quality working solution more quickly, and pivoted to treating the resultant project as a focused Go learning resource. I (manually) audited the codebase several times over, cross-referencing all unfamiliar syntax, idioms, and otherwise uncertain Go concepts with the official Go documentation (as well as various other online resources).
+Below is an outline of my overall approach toward the project. Full disclosure: I used a considerable amount of AI tooling for this assignment. I pay for ChatGPT, Claude, and Cursor, and I used each to assist me in the areas I commonly find them to be strongest at (in the same manner I typically use them for my own development work).
 
-Using AI this heavily on a take-home is not how I'd normally prefer to approach this kind of assessment. But (aforementioned time constraints aside) given the current landscape of software development, I do think this approach is more authentic to the reality of software development in 2026 for anyone wishing to remain competitive in the market, and going against the grain in this respect feels increasingly non-competitive. Either way, I'd rather demonstrate that I can work effectively/create robust software quickly with these tools than provide a rushed incomplete manual solution.
-
-For the sake of integrity, here are some screenshots of the Go-related resources I referenced/learned from while I worked through and audited the project (specific links can be provided if anyone is interested):
-
-![history1](./assets/images/history1.png)
-![history2](./assets/images/history2.png)
-![history3](./assets/images/history3.png)
+1) I started off by reading the spec, installing and getting a handle on the device simulator, and looking over the OpenAPI contract + devices.csv.
+2) I then (manually) worked through the first few Go starter tutorials (on the documentation website) to get a feel for Go's syntax and structure.
+3) I fed ChatGPT the spec and corresponding files, and asked for it to source documentation for the Go standard library modules I would need to complete the project, for similar (publicly hosted) Go projects I could reference, for articles or any other resources from seasoned/expert Go developers on best practices, and for a general rundown of Go-specific language implementation information (syntax, idioms, etc.) that would likely benefit my understanding and ability to complete the project.
+4) I spent quite a while reading through the various resources provided and using Google to look for second opinions and check facts regarding any uncertain claims or information as necessary.
+5) I then began spitballing project architecture ideas with ChatGPT based on my readings and its suggestions, came up with an overarching general plan for the current registry/device, http handler, and metric helper designs, and started scaffolding the project's file structure (just empty .go and README.md files) based on these ideas, eventually arriving at the file structure in place today.
+6) I began filling in basic module boilerplate with guidance from ChatGPT. Namely I started with imports, package declarations, and basic function/method signatures (with empty bodies at this point). 
+7) Once I had the basic module structure in place, I fed Claude with context about the current task and hat it do a full codebase audit, first asking for any architectural/design suggestions or criticisms, and then asking it to fill in the empty bodies with the code required to make the project work, alongside extensive comments and docstrings to ensure that every code block was well-documented and easily understandable.
+8) I then manually reviewed the codebase, cross-referencing ... *TODO*
 
 ### How would you modify the data model to support more metric types?
 
-The current `Device` struct has two concrete fields - one for heartbeats, one for upload times. Adding a third metric today means touching the struct, adding a new method, a new handler, and a new calculation function. A more extensible design could use a generic sample store keyed by metric name:
+The current `Device` struct has two concrete fields - one for heartbeats, one for upload times. Adding a third metric today means adding to the struct, adding a new method, a new handler, and a new calculation function. A more extensible design could use a generic sample store keyed by metric name:
 
 ```go
 type MetricSample struct {
