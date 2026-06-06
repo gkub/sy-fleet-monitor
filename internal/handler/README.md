@@ -2,7 +2,7 @@
 
 This package is the **HTTP layer** - the bridge between the outside world (HTTP requests) and the internal logic (device data and metric calculations).
 
-It knows about JSON, HTTP status codes, and URL paths. It does not know about mutexes, CSV files, or how uptime is calculated. Those are someone else's problem.
+It owns JSON parsing/encoding, HTTP status codes, URL path values, and error responses. Device storage and metric calculations stay in their own packages.
 
 ---
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ## Request and Response Types
 
-These structs define the shape of JSON bodies. The `json:"field_name"` tags control key names in serialised JSON — required here because the OpenAPI contract uses snake_case while Go conventions use PascalCase.
+These structs define the shape of JSON bodies. JSON field names follow the OpenAPI contract.
 
 ### `heartbeatRequest`
 The JSON body the device sends to `POST .../heartbeat`.
@@ -76,11 +76,7 @@ Each handler accepts a `*device.Registry` and returns an `http.HandlerFunc`. The
 
 **What it does:** Handles `POST /api/v1/devices/{device_id}/heartbeat`.
 
-Step by step:
-1. Extract `{device_id}` from the URL → call `lookupDevice` → 404 if unknown
-2. Read and decode the JSON body → `heartbeatRequest` → 400 if malformed
-3. Call `device.RecordHeartbeat(sentAt)` to store the timestamp
-4. Respond `204 No Content` — the request succeeded; there is no response body.
+Looks up the target device, decodes the heartbeat timestamp, stores it, and responds `204 No Content`.
 
 ---
 
@@ -88,13 +84,7 @@ Step by step:
 
 **What it does:** Handles `POST /api/v1/devices/{device_id}/stats`.
 
-Step by step:
-1. Extract `{device_id}` → lookup → 404 if unknown
-2. Decode JSON body → `uploadStatsRequest` → 400 if malformed
-3. Call `device.RecordUploadStat(uploadTime)` to store the nanosecond count
-4. Respond `204 No Content`
-
-Same pattern as `RecordHeartbeat`, different request struct and different `Record*` method.
+Looks up the target device, decodes the upload duration, stores it, and responds `204 No Content`.
 
 ---
 
@@ -102,7 +92,7 @@ Same pattern as `RecordHeartbeat`, different request struct and different `Recor
 
 **What it does:** Handles `GET /api/v1/devices/{device_id}/stats`.
 
-This is the most complex handler - it actually computes and returns something.
+This handler snapshots the device telemetry, computes the current metrics, and returns them as JSON.
 
 ```mermaid
 sequenceDiagram
@@ -125,13 +115,7 @@ sequenceDiagram
     H->>W: writeJSON 200 OK\n{"uptime": 99.79, "avg_upload_time": "3m29s..."}
 ```
 
-Step by step:
-1. Extract `{device_id}` → lookup → 404 if unknown
-2. Call `device.Snapshot()` - this copies the device's data under a lock and returns the copies
-3. Call `metrics.CalculateUptime(copiedHeartbeats)` - returns a float
-4. Call `metrics.CalculateAverageUploadDuration(copiedUploadTimes)` - returns a `time.Duration`
-5. Call `.String()` on the duration to get `"3m29.226522788s"` (the format the contract requires)
-6. Encode both values into a `deviceStatsResponse` and respond `200 OK` with JSON
+The response uses the uptime percentage and the duration string format required by the OpenAPI contract.
 
 ---
 
@@ -145,12 +129,10 @@ Internal utilities used by the three handlers above.
 
 The `bool` return signals success or failure. If it returns `false`, the error response has already been written - the calling handler just needs to `return`.
 
-This helper exists to avoid copy-pasting the same 6 lines of lookup-and-404 at the top of every handler.
-
 ### `writeJSON(responseWriter, statusCode, responseBody)`
 
-Sets `Content-Type: application/json`, writes the status code, then encodes the response body as JSON. Headers are set before `WriteHeader` is called — the order matters.
+Sets `Content-Type: application/json`, writes the status code, then encodes the response body as JSON.
 
 ### `writeError(responseWriter, statusCode, message)`
 
-Thin wrapper around `writeJSON` that formats the message as `{"msg": "..."}` — the shape the OpenAPI contract requires for all error responses.
+Thin wrapper around `writeJSON` that formats the message as `{"msg": "..."}`, the shape the OpenAPI contract requires for all error responses.

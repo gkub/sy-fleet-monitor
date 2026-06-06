@@ -60,7 +60,7 @@ sy_code_challenge/
 
 ## Package READMEs
 
-Each package has its own README covering its types, methods, and design decisions.
+Each package has its own README covering package responsibilities and notable implementation details.
 
 | Package | Description | README |
 |---------|-------------|--------|
@@ -79,11 +79,11 @@ This diagram shows how the four packages depend on each other. Arrows mean "impo
 graph TD
     A["cmd/fleetstats\n(main.go)\n\nEntry point.\nReads CSV, wires up routes,\nstarts HTTP server."]
 
-    B["internal/handler\n\nKnows about HTTP.\nDecodes JSON requests,\nencodes JSON responses,\nreturns error messages."]
+    B["internal/handler\n\nHTTP request handling,\nJSON encoding/decoding,\nerror responses."]
 
-    C["internal/device\n\nKnows about data.\nHolds Device structs and\nthe Registry map.\nOwns all locking logic."]
+    C["internal/device\n\nDevice model,\nin-memory registry,\nlocking."]
 
-    D["internal/metrics\n\nKnows about math.\nPure functions only.\nNo HTTP, no storage,\nno global state."]
+    D["internal/metrics\n\nUptime and average upload\ntime calculations."]
 
     A -->|"creates Registry,\npasses to handlers"| B
     A -->|"creates Registry"| C
@@ -108,8 +108,7 @@ sequenceDiagram
     Handler->>Registry: FindByID("60-6b-44-84-dc-64")
     Registry-->>Handler: *Device (found)
     Handler->>Handler: Decode JSON body → heartbeatRequest
-    Handler->>Device: RecordHeartbeat(time.Time)
-    Device->>Device: Lock mutex, append timestamp, unlock
+    Handler->>Device: RecordHeartbeat(sent_at)
     Handler-->>Simulator: 204 No Content
 ```
 
@@ -126,8 +125,7 @@ sequenceDiagram
     Handler->>Registry: FindByID(id)
     Registry-->>Handler: *Device (found)
     Handler->>Handler: Decode JSON body → uploadStatsRequest
-    Handler->>Device: RecordUploadStat(197331667813)
-    Device->>Device: Lock mutex, append nanosecond value, unlock
+    Handler->>Device: RecordUploadStat(upload_time)
     Handler-->>Simulator: 204 No Content
 ```
 
@@ -145,7 +143,6 @@ sequenceDiagram
     Handler->>Registry: FindByID(id)
     Registry-->>Handler: *Device (found)
     Handler->>Device: Snapshot()
-    Device->>Device: Lock, copy slices, unlock
     Device-->>Handler: []time.Time heartbeats, []int64 uploadTimes
     Handler->>Metrics: CalculateUptime(heartbeats)
     Metrics-->>Handler: 99.79167
@@ -158,105 +155,8 @@ sequenceDiagram
 
 ## Simulator Results
 
-All five devices matched expected values exactly.
-
-```
-DeviceID: 18-b8-87-e7-1f-06
-    Uptime        Expected: 98.75000   Actual: 98.75000  ✓
-    AvgUploadTime Expected: 3m17.331667813s  Actual: 3m17.331667813s  ✓
-
-DeviceID: 38-4e-73-e0-33-59
-    Uptime        Expected: 99.79167   Actual: 99.79167  ✓
-    AvgUploadTime Expected: 3m29.226522788s  Actual: 3m29.226522788s  ✓
-
-DeviceID: 60-6b-44-84-dc-64
-    Uptime        Expected: 99.79167   Actual: 99.79167  ✓
-    AvgUploadTime Expected: 3m7.893379134s   Actual: 3m7.893379134s   ✓
-
-DeviceID: b4-45-52-a2-f1-3c
-    Uptime        Expected: 100.00000  Actual: 100.00000 ✓
-    AvgUploadTime Expected: 3m19.085533836s  Actual: 3m19.085533836s  ✓
-
-DeviceID: 26-9a-66-01-33-83
-    Uptime        Expected: 92.91667   Actual: 92.91667  ✓
-    AvgUploadTime Expected: 3m21.858747766s  Actual: 3m21.858747766s  ✓
-```
-
----
+The device simulator matched expected uptime and average upload-time values for all five devices. Full simulator output is in `results.txt`.
 
 ## Solution Write-Up
 
-### How long did you spend working on the problem? What was the most difficult part?
-
-I have, thus far, spent roughly 20 hours on this project. There are lots of small features and optimizations that would be nice to add, but this is at least a complete working solution.
-
-As discussed in my first interview, I have never worked with (nor seen a line of) Go prior to this assignment. Followingly, the most difficult part for me was learning enough Go to know how to begin, granted a busy work schedule (and thus a narrow window of time to complete the assignment within). The core engineering concepts in the project are all comfortably familiar to me from work, university, and personal projects, with REST APIs + request/response handling, pointers/in-memory storage, and synchronization primitives all being concepts I've worked with fairly extensively on multiple projects. Figuring out how to implement these concepts in a new language was the challenging part.
-
-Below is an outline of my overall approach toward the project. Full disclosure: I used a considerable amount of AI tooling for this assignment. I pay for ChatGPT, Claude, and Cursor, and I used each to assist me in the areas I commonly find them to be strongest at (in the same manner I typically use them for my own development work).
-
-1) I started off by reading the spec, installing and getting a handle on the device simulator, and looking over the OpenAPI contract + devices.csv.
-2) I then (manually) worked through the first few Go starter tutorials (on the documentation website) to get a feel for Go's syntax and structure.
-3) I fed ChatGPT the spec and corresponding files, and asked for it to source documentation for the Go standard library modules I would need to complete the project, for similar (publicly hosted) Go projects I could reference, for articles or any other resources from seasoned/expert Go developers on best practices, and for a general rundown of Go-specific language implementation information (syntax, idioms, etc.) that would likely benefit my understanding and ability to complete the project.
-4) I spent quite a while reading through the various resources provided and using Google to look for second opinions and check facts regarding any uncertain claims or information as necessary.
-5) I then began spitballing project architecture ideas with ChatGPT based on my readings and its suggestions, came up with an overarching general plan for the current registry/device, http handler, and metric helper designs, and started scaffolding the project's file structure (just empty .go and README.md files) based on these ideas, eventually arriving at the file structure in place today.
-6) I began filling in basic module boilerplate with guidance from ChatGPT. Namely I started with imports, package declarations, and basic function/method signatures (with empty bodies at this point). 
-7) Once I had the basic module structure in place, I fed Claude with context about the current task and hat it do a full codebase audit, first asking for any architectural/design suggestions or criticisms, and then asking it to fill in the empty bodies with the code required to make the project work, alongside extensive comments and docstrings to ensure that every code block was well-documented and easily understandable.
-8) I then manually reviewed the codebase, cross-referencing ... *TODO*
-
-### How would you modify the data model to support more metric types?
-
-The current `Device` struct has two concrete fields - one for heartbeats, one for upload times. Adding a third metric today means adding to the struct, adding a new method, a new handler, and a new calculation function. A more extensible design could use a generic sample store keyed by metric name:
-
-```go
-type MetricSample struct {
-    RecordedAt time.Time
-    Value      float64
-}
-
-type Device struct {
-    ID      string
-    samples map[string][]MetricSample  // "heartbeat", "upload_time", "battery_level", etc.
-    mu      sync.Mutex
-}
-```
-
-Paired with a registered calculator map, adding a new metric becomes: write one calculation function, add one route. The `Device` struct never changes.
-
-**The bigger long-term change would be to move to a database.** In-memory storage works fine for a small fleet over a short window (or perhaps on a supercomputer for a small specialized fleet), but it doesn't scale - at one heartbeat per minute per device, 30,000+ devices running for a year would need hundreds of gigabytes of RAM just for heartbeat data alone.
-
-*(As a side note - the "30,000" number I'm referencing herein is just based on the number we discussed in our initial interview).*
-
-PostgreSQL would be my first choice - partly because it handles time-series data well and scales comfortably to millions of rows with proper indexing, but honestly also because it's what I know best. I've built a multi-tenant Postgres database for fleet edge-AI devices in my current role, so this domain feels familiar. I'd be open to a better fit if one exists for the specific requirements, but Postgres is where I'd start. The result is the same query capability with a fraction of the memory footprint, and adding a new metric type becomes as simple as a new table and a new route - existing code is untouched.
-
-### Runtime Complexity
-
-| Endpoint | Time | Notes |
-|----------|------|-------|
-| `POST /heartbeat` | O(1) amortized | Slice append; Go doubles capacity as needed |
-| `POST /stats` | O(1) amortized | Same |
-| `GET /stats` | O(H + U) | H = heartbeat count, U = upload count - one linear pass each |
-
-The real complexity concern is **memory, not time**. Storing every raw heartbeat forever means memory per device grows without bound: 1 heartbeat/min × 1 year × 24 bytes = ~12 MB per device. Across 30,000 devices that's more than 350 GB in one year. The production fix is to store running aggregates instead of raw slices:
-
-```go
-// O(1) memory per device regardless of how long it has been running
-type DeviceStats struct {
-    MinutesWithHeartbeat   int64
-    TotalMinutesObserved   int64
-    TotalUploadNanoseconds int64
-    UploadCount            int64
-}
-```
-
-`GET /stats` then becomes O(1) - two divisions rather than iterating over slices. The tradeoff is you lose the ability to recompute with a changed formula or query historical windows.
-
-### On Concurrency and Scale
-
-The locking design handles 30,000 devices well as written:
-
-- **Per-device mutexes** mean writes to different devices never compete. All 30,000 devices can receive telemetry simultaneously.
-- **`sync.RWMutex` on the Registry** means all stat queries run in parallel; only CSV loading (a one-time startup write) needs exclusive access.
-- **Snapshot-then-compute** keeps the lock held only for a memory copy, never for the math. Lock contention approaches zero.
-
-The only structural bottleneck at very high device counts would be the initial `LoadFromCSV` write lock, which is held while populating the map. With 30,000 entries this takes microseconds - not a concern in practice.
-
+The assignment write-up is in [SOLUTION_WRITEUP.md](SOLUTION_WRITEUP.md).

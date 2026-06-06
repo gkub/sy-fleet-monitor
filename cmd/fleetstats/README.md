@@ -28,37 +28,26 @@ go build -o fleetstats ./cmd/fleetstats
 ```mermaid
 flowchart TD
     A([go run ./cmd/fleetstats]) --> B[Parse -devices flag]
-    B --> C[Create empty Registry\ndevice.NewRegistry]
-    C --> D[LoadFromCSV\nRead devices.csv into Registry]
+    B --> C[Create device Registry]
+    C --> D[Load devices.csv]
     D --> E{File readable?}
-    E -- No --> F[log.Fatalf - exit with error]
+    E -- No --> F[Exit with error]
     E -- Yes --> G[Log: 'loaded N devices']
-    G --> H[Create HTTP router\nhttp.NewServeMux]
-    H --> I[Register 3 routes\nPOST heartbeat\nPOST stats\nGET stats]
-    I --> J[http.ListenAndServe :6733]
+    G --> H[Create HTTP router]
+    H --> I[Register API routes]
+    I --> J[Listen on :6733]
     J --> K([Server running - handling requests])
 ```
 
 ---
 
-## What `main.go` Does, Line by Line
+## Implementation Notes
 
-### Constants
+`main.go` keeps startup wiring in one place:
 
-**`serverPort`** - The port the HTTP server listens on (`6733`). Set by the OpenAPI contract; changing it breaks the simulator.
+- The server listens on port `6733`, as required by the OpenAPI contract and device simulator.
+- The `-devices` flag selects the CSV file loaded into the registry at startup.
+- A single in-memory registry is shared by all handlers.
+- Routes are registered under `/api/v1` for heartbeat ingestion, upload-stat ingestion, and stat retrieval.
 
-**`apiBasePath`** - The URL prefix shared by all three routes (`/api/v1`). Defined once so all route registrations stay in sync.
-
-### `main()`
-
-**`deviceCSVPath`** - Holds the value of the `-devices` flag. Using a flag rather than a hardcoded path means the binary runs in different environments without code changes.
-
-**`flag.Parse()`** - Reads command-line arguments and fills in registered flag variables.
-
-**`deviceRegistry`** - The single shared store for all device data. Created once here and passed into each HTTP handler so all three handlers operate on the same data.
-
-**`requestRouter`** - The HTTP router. Matches incoming requests by method and path and hands them to the correct handler function.
-
-**Route registration** - Each `HandleFunc` call binds a method+path pattern to a handler. The `{device_id}` segment is a named wildcard the handler retrieves via `r.PathValue("device_id")`.
-
-**`http.ListenAndServe`** - Starts the server and blocks. If it returns, something went wrong — `log.Fatalf` prints the error and exits.
+If device loading fails, startup fails rather than accepting requests with an empty registry.

@@ -1,13 +1,6 @@
-// The handler package contains the HTTP handler functions for the Fleet Stats API.
-//
-// Each exported function (RecordHeartbeat, RecordUploadStats, GetDeviceStats)
-// takes a *device.Registry and returns an http.HandlerFunc. Returning a function
-// rather than being one directly is the "closure" pattern: the returned handler
-// "closes over" the registry argument, giving it access to device data on every
-// request without relying on global variables.
-//
-// This file also owns all JSON request/response struct definitions, because they
-// are HTTP-layer details with no meaning outside of this package.
+// Package handler exposes HTTP handlers for the Fleet Stats API.
+// It owns request/response JSON types and delegates storage and metric work to
+// the device and metrics packages.
 package handler
 
 import (
@@ -19,14 +12,9 @@ import (
 	"github.com/gkub/sy-code-challenge/internal/metrics"
 )
 
-/* -------------------------------------------------------------- */
-// Request and response types
-/* -------------------------------------------------------------- */
+/* Request and response types */
 
-// Unexported types (lowercase first letter) are private to this package.
-// The `json:"field_name"` struct tags tell encoding/json which key to use
-// when reading from or writing to JSON. Without a tag, it defaults to the
-// exact field name, which wouldn't match the snake_case the API contract uses.
+// JSON field names follow the OpenAPI contract.
 
 // heartbeatRequest is the JSON body the device sends to POST .../heartbeat.
 type heartbeatRequest struct {
@@ -59,19 +47,14 @@ type errorResponse struct {
 	Message string `json:"msg"`
 }
 
-/* -------------------------------------------------------------- */
-// Handlers
-/* -------------------------------------------------------------- */
+/* Handlers */
 
 // RecordHeartbeat returns the handler for POST /api/v1/devices/{device_id}/heartbeat.
 //
 // It reads the sent_at timestamp from the JSON body and appends it to the
-// target device's heartbeat history. Responds with 204 No Content on success -
-// meaning the request was accepted but there is no response body to return.
+// target device's heartbeat history. Responds with 204 No Content on success.
 func RecordHeartbeat(deviceRegistry *device.Registry) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, httpRequest *http.Request) {
-		// Look up the device identified by {device_id} in the URL.
-		// lookupDevice writes a 404 and returns false if the device is unknown.
 		var targetDevice *device.Device
 		var deviceFound bool
 		targetDevice, deviceFound = lookupDevice(deviceRegistry, responseWriter, httpRequest)
@@ -79,8 +62,6 @@ func RecordHeartbeat(deviceRegistry *device.Registry) http.HandlerFunc {
 			return // response already written by lookupDevice
 		}
 
-		// Decode the JSON request body into our heartbeatRequest struct.
-		// &requestBody passes a pointer so Decode can fill in its fields.
 		var requestBody heartbeatRequest
 		var decodeErr error = json.NewDecoder(httpRequest.Body).Decode(&requestBody)
 		if decodeErr != nil {
@@ -88,10 +69,8 @@ func RecordHeartbeat(deviceRegistry *device.Registry) http.HandlerFunc {
 			return
 		}
 
-		// Persist the heartbeat. RecordHeartbeat handles its own locking.
 		targetDevice.RecordHeartbeat(requestBody.SentAt)
 
-		// 204 No Content: success, but we have nothing to put in the response body.
 		responseWriter.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -116,7 +95,6 @@ func RecordUploadStats(deviceRegistry *device.Registry) http.HandlerFunc {
 			return
 		}
 
-		// Persist the upload duration. RecordUploadStat handles its own locking.
 		targetDevice.RecordUploadStat(requestBody.UploadTime)
 
 		responseWriter.WriteHeader(http.StatusNoContent)
@@ -136,19 +114,15 @@ func GetDeviceStats(deviceRegistry *device.Registry) http.HandlerFunc {
 			return
 		}
 
-		// Snapshot returns independent copies of the device's data.
-		// We do all computation on the copies so the device's mutex is released
-		// as quickly as possible, keeping other goroutines from waiting.
+		// Snapshot returns copies so metric calculations do not hold the device lock.
 		var heartbeatTimestamps []time.Time
 		var uploadTimesNanoseconds []int64
 		heartbeatTimestamps, uploadTimesNanoseconds = targetDevice.Snapshot()
 
-		// Delegate all number-crunching to the metrics package.
 		var uptimePercent float64 = metrics.CalculateUptime(heartbeatTimestamps)
 		var averageUploadDuration time.Duration = metrics.CalculateAverageUploadDuration(uploadTimesNanoseconds)
 
-		// Build the response struct. time.Duration.String() produces the
-		// human-readable format ("5m10s") required by the OpenAPI contract.
+		// The API contract expects avg_upload_time as a duration string.
 		var responseBody deviceStatsResponse = deviceStatsResponse{
 			Uptime:        uptimePercent,
 			AvgUploadTime: averageUploadDuration.String(),
@@ -158,9 +132,7 @@ func GetDeviceStats(deviceRegistry *device.Registry) http.HandlerFunc {
 	}
 }
 
-/* -------------------------------------------------------------- */
-// Shared helpers
-/* -------------------------------------------------------------- */
+/* Shared helpers */
 
 // lookupDevice extracts {device_id} from the URL, looks it up in the registry,
 // and writes a JSON 404 if the device is not found.
@@ -172,9 +144,7 @@ func lookupDevice(
 	responseWriter http.ResponseWriter,
 	httpRequest *http.Request,
 ) (*device.Device, bool) {
-	// PathValue extracts the named segment from the route pattern.
-	// For a route registered as ".../devices/{device_id}/...", this returns
-	// whatever string appeared in the {device_id} position of the actual URL.
+	// Read device_id from the matched route.
 	var deviceID string = httpRequest.PathValue("device_id")
 
 	var foundDevice *device.Device
@@ -188,8 +158,7 @@ func lookupDevice(
 }
 
 // writeJSON serialises responseBody to JSON and writes it to the response with
-// the given HTTP status code. It sets Content-Type before WriteHeader because
-// Go's http package ignores headers set after the status code is written.
+// the given HTTP status code.
 func writeJSON(responseWriter http.ResponseWriter, statusCode int, responseBody any) {
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(statusCode)

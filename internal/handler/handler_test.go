@@ -1,23 +1,9 @@
 package handler_test
 
-/* -------------------------------------------------------------- */
-// 	Tests for the handler package.
+// Tests for the handler package.
 //
-// These tests verify the HTTP contract: that the right status codes come back,
-// that response bodies have the right JSON shape, and that error cases are
-// handled correctly. We use Go's httptest package, which lets you call a handler
-// function directly without binding to a real port or making real network calls.
-//
-// How httptest works:
-// httptest.NewRequest  -- builds a fake *http.Request with a given method, path, and body
-// httptest.NewRecorder -- a fake http.ResponseWriter; the handler writes into it
-// recorder.Code        -- the HTTP status code the handler passed to WriteHeader
-// recorder.Body        -- the response body the handler encoded and wrote
-//
-// SetPathValue is a Go 1.22+ method that injects a named URL segment into a
-// request, mimicking what the real router does when it matches {device_id}.
-// Without it, r.PathValue("device_id") inside the handler would return "".
-/* -------------------------------------------------------------- */
+// Verifies status codes, JSON response shapes, and error handling by
+// calling handlers directly with httptest.
 import (
 	"encoding/json"
 	"fmt"
@@ -32,14 +18,10 @@ import (
 	"github.com/gkub/sy-code-challenge/internal/handler"
 )
 
-/* -------------------------------------------------------------- */
 // Local response types
 //
 // The response structs in handler.go are unexported, so we re-declare them
-// here just for decoding. They must match the json tags in handler.go
-// exactly, or the fields will silently decode to their zero values and the
-// tests will give misleading results.
-/* -------------------------------------------------------------- */
+// here just for decoding.
 
 // statsResponseBody matches the JSON returned by GET .../stats.
 type statsResponseBody struct {
@@ -53,9 +35,7 @@ type errorResponseBody struct {
 	Message string `json:"msg"`
 }
 
-/* -------------------------------------------------------------- */
 // Test helpers
-/* -------------------------------------------------------------- */
 
 // setupRegistry writes a temporary CSV with the given device IDs,
 // loads it into a fresh Registry, and registers cleanup so the file
@@ -86,7 +66,7 @@ func setupRegistry(t *testing.T, deviceIDs []string) *device.Registry {
 }
 
 // postRequest builds a fake POST request with a JSON body and injects
-// deviceID as the {device_id} path value -- what the real router does.
+// deviceID as the {device_id} path value.
 func postRequest(path, jsonBody, deviceID string) *http.Request {
 	var req *http.Request = httptest.NewRequest(
 		http.MethodPost,
@@ -104,14 +84,9 @@ func getRequest(path, deviceID string) *http.Request {
 	return req
 }
 
-/* -------------------------------------------------------------- */
 // RecordHeartbeat tests
-/* -------------------------------------------------------------- */
 
 func TestRecordHeartbeat_KnownDevice_Returns204(t *testing.T) {
-	// The happy path: a valid device ID and a valid JSON body.
-	// Expect 204 No Content, meaning the server accepted the heartbeat
-	// but has nothing to send back.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordHeartbeat(reg)
 
@@ -130,10 +105,7 @@ func TestRecordHeartbeat_KnownDevice_Returns204(t *testing.T) {
 }
 
 func TestRecordHeartbeat_UnknownDevice_Returns404WithMsg(t *testing.T) {
-	// Sending a heartbeat for a device ID that was never in devices.csv.
-	// Expect 404 with the required {"msg": "..."} response body shape.
-	// This verifies that the handler uses writeError correctly and doesn't
-	// just return an empty body or a plain-text error.
+	// Unknown devices return the required JSON error shape.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordHeartbeat(reg)
 
@@ -158,9 +130,6 @@ func TestRecordHeartbeat_UnknownDevice_Returns404WithMsg(t *testing.T) {
 }
 
 func TestRecordHeartbeat_InvalidJSON_Returns400(t *testing.T) {
-	// Sending a body that is not valid JSON at all.
-	// Expect 400 Bad Request -- the server should reject it rather than panic
-	// or silently record a zero-value timestamp.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordHeartbeat(reg)
 
@@ -178,12 +147,9 @@ func TestRecordHeartbeat_InvalidJSON_Returns400(t *testing.T) {
 	}
 }
 
-/* -------------------------------------------------------------- */
 // RecordUploadStats tests
-/* -------------------------------------------------------------- */
 
 func TestRecordUploadStats_KnownDevice_Returns204(t *testing.T) {
-	// The happy path: a valid device ID, a valid sent_at, and a valid integer upload_time.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordUploadStats(reg)
 
@@ -202,8 +168,6 @@ func TestRecordUploadStats_KnownDevice_Returns204(t *testing.T) {
 }
 
 func TestRecordUploadStats_UnknownDevice_Returns404(t *testing.T) {
-	// Same unknown-device check as the heartbeat handler -- verifies the
-	// lookupDevice helper is being used consistently across both POST handlers.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordUploadStats(reg)
 
@@ -222,8 +186,7 @@ func TestRecordUploadStats_UnknownDevice_Returns404(t *testing.T) {
 }
 
 func TestRecordUploadStats_WrongType_Returns400(t *testing.T) {
-	// upload_time must be a JSON integer. Sending a string should fail
-	// at JSON decode time and return 400, not silently store a zero.
+	// upload_time must be a JSON integer.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.RecordUploadStats(reg)
 
@@ -241,14 +204,9 @@ func TestRecordUploadStats_WrongType_Returns400(t *testing.T) {
 	}
 }
 
-/* -------------------------------------------------------------- */
 // GetDeviceStats tests
-/* -------------------------------------------------------------- */
 
 func TestGetDeviceStats_UnknownDevice_Returns404(t *testing.T) {
-	// The GET handler uses the same lookupDevice helper as the POST
-	// handlers. This confirms it returns 404 for unknown IDs, not
-	// zero-value stats.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.GetDeviceStats(reg)
 
@@ -263,11 +221,7 @@ func TestGetDeviceStats_UnknownDevice_Returns404(t *testing.T) {
 }
 
 func TestGetDeviceStats_NoDataYet_ReturnsZeroValues(t *testing.T) {
-	// A device that exists in the registry but has sent no telemetry yet.
-	// The server should return 200 with zero-value stats rather than an error --
-	// the device is known, we just haven't heard from it. This tests that
-	// CalculateUptime and CalculateAverageUploadDuration handle empty slices
-	// gracefully, and that those zero values survive the full handler path.
+	// Known devices with no telemetry return zero-value stats.
 	var reg *device.Registry = setupRegistry(t, []string{"device-001"})
 	var handlerFunc http.HandlerFunc = handler.GetDeviceStats(reg)
 
@@ -292,9 +246,7 @@ func TestGetDeviceStats_NoDataYet_ReturnsZeroValues(t *testing.T) {
 }
 
 func TestGetDeviceStats_WithData_ReturnsCorrectStats(t *testing.T) {
-	// The main integration test: drive all three endpoints together and verify
-	// the computed output. This is the closest thing to an end-to-end test
-	// without running a real server.
+	// Drive all three endpoints together and verify the computed output.
 	//
 	// Setup:
 	//   Two heartbeats at 10:00 and 10:04 (minutes 0 and 4, gap in between).
