@@ -1,8 +1,6 @@
 # internal/device
 
-This package owns the **data model** for the service. It defines what a device looks like in memory and provides the registry that stores all of them.
-
-Everything related to safe concurrent access (locking) lives here. No other package needs to think about mutexes.
+This package owns the in-memory device registry and per-device telemetry storage.
 
 ---
 
@@ -67,11 +65,3 @@ Looks up a device by ID. Returns `(device, true)` if found, `(nil, false)` if no
 
 **`Count() int`**
 Returns how many devices are registered. Used once, at startup, for the log message `"loaded N devices"`.
-
----
-
-## Why Is This Its Own Package?
-
-1. **Locking logic has one home.** Per-device and registry synchronization stay inside this package.
-2. **Encapsulation is enforced.** The handler package records telemetry and reads snapshots through methods that apply the appropriate locks.
-3. **Testable in isolation.** Device tests need no HTTP server and no CSV file.
