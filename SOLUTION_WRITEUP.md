@@ -4,15 +4,15 @@
 
 I spent roughly 20 hours getting the project to its current, submission-ready state. There are still small features and optimizations I could add, but the service is complete and passes the simulator.
 
-As discussed in my first interview, I had never worked with (nor seen a line of) Go prior to this assignment. Given that context, the hardest part was learning enough Go to start building confidently. The underlying engineering concepts were familiar from work, university, and personal projects: REST APIs, request/response handling, in-memory storage, and synchronization primitives. The challenge was translating those concepts into a language and standard library I was learning as I went.
+As discussed in my first interview, I had never worked with (nor seen a line of) Go prior to this assignment. Given that context, the hardest part was learning enough Go to start building confidently. The underlying engineering concepts were familiar from work, university, and personal projects: I've worked with REST APIs, request/response handling, in-memory storage/pointers, and synchronization primitives in a variety of contexts and languages over the past 8+ years. The only challenge has been translating those concepts into a language/standard library I am learning as I go (pun unintended).
 
-In terms of AI tooling, I used both ChatGPT and Claude (plus Google, mostly the search engine rather than Gemini) to find Go documentation, standard-library APIs, similar projects, and best-practice resources to study before implementing. I also used AI coding agents to help scaffold and implement parts of the code, compare design approaches, and review the project for edge cases and clarity. I manually read the suggested resources, fact-checked uncertain claims, cross-checked the implementation against the OpenAPI contract and simulator, and iterated on the code, tests, and documentation until the project was solidly correct, readable, and ready to submit.
+In terms of AI tooling, I used both ChatGPT and Claude (plus Google, but mainly the search engine as opposed to Gemini) to find Go documentation, standard-library APIs, similar projects, and best-practice resources to study before implementing. I also used AI coding agents to help scaffold and implement parts of the code, compare design approaches, and to review the project for edge cases and clarity. I manually read through documentation, forums, articles, and various AI-recommended Go resources, fact-checked uncertain claims, cross-checked the implementation against the OpenAPI contract and simulator, and iterated on the code, tests, and documentation until the project was solidly correct, readable, and ready to submit.
 
 ### How would you modify the data model to support more metric types?
 
-The current `Device` struct has two separate histories: one for heartbeats and one for upload times. That works for the two required metrics, but each new metric would need another field on `Device`, another recording method, another handler, and another calculation function.
+The current `Device` struct has two separate histories: one for heartbeats and one for upload times. That works for the two required metrics, but any new metric would need another field on `Device`, another recording method, another handler, and another calculation function.
 
-I would make the device store each metric using the same record format instead. Each metric would still have a name, like `"heartbeat"`, `"upload_time"`, or `"battery_level"`, but the stored record would always look the same: when it was recorded, and what value was recorded.
+One way to tackle this would be to make the device store each metric using a standardized record format instead. Each metric would still have a name, like `"heartbeat"`, `"upload_time"`, or `"battery_level"`, but the stored record would always look the same: when it was recorded, and what value was recorded. For trivial cases, this at least helps scale our our metric recording handling.
 
 ```go
 type MetricSample struct {
@@ -27,7 +27,7 @@ type Device struct {
 }
 ```
 
-That does not mean a method would magically create a new metric type on its own. It means the storage layer no longer needs a new field every time the API supports a new metric. The code could still expose a small helper like this:
+The code could expose a small helper like this:
 
 ```go
 func (d *Device) RecordMetric(name string, value float64, recordedAt time.Time) {
@@ -48,7 +48,7 @@ device.RecordMetric("battery_level", batteryLevel, receivedAt)
 
 Adding a new metric would still require the route, validation, and calculation logic for that metric. The difference is that the `Device` struct stays unchanged.
 
-**The bigger long-term change would be to move to a database.** In-memory storage works fine for a small fleet over a short window (or perhaps on a supercomputer for a small specialized fleet), but it doesn't scale - at one heartbeat per minute per device, 30,000+ devices running for a year would need hundreds of gigabytes of RAM just for heartbeat data alone.
+**The larger, more sensible long-term change would be to move to a database.** In-memory storage works fine for a small fleet over a short window (or perhaps on a supercomputer for a specialized small fleet), but it doesn't scale. At one heartbeat per minute per device, 30,000+ devices running for a year would need hundreds of gigabytes of RAM just for heartbeat data alone.
 
 *(As a side note - the "30,000" number I'm referencing herein is just based on the number we discussed in our initial interview).*
 
